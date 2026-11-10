@@ -315,6 +315,14 @@ flutter pub get
 flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
+To allow account creation without confirmation emails, open Supabase Dashboard
+**Authentication → Providers → Email** and disable **Confirm email**. The app
+cannot change this project-level Auth setting. Users still need to choose
+**Create account** once; after successful sign-in Supabase persists the session,
+and the browser can offer to save the email/password using its password manager.
+The app does not store raw passwords itself. Sign-in currently uses the account
+email; the username is the searchable profile name used for direct chats.
+
 ## GitHub Pages
 
 The workflow in `.github/workflows/deploy.yml` deploys on pushes to `main`.

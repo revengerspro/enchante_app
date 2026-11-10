@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _forestGreen = Color(0xFF2E6F40);
@@ -137,12 +138,15 @@ class _AuthScreenState extends State<AuthScreen> {
             _showResendConfirmation = true;
             _notice = 'Check your email to confirm your account, then sign in.';
           });
+        } else if (response.session != null) {
+          TextInput.finishAutofillContext(shouldSave: true);
         }
       } else {
         await auth.signInWithPassword(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
+        TextInput.finishAutofillContext(shouldSave: true);
       }
     } on AuthException catch (error) {
       if (mounted) setState(() => _error = error.message);
@@ -203,139 +207,145 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
               child: Padding(
                 padding: const EdgeInsets.all(32),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Center(child: _BrandMark(size: 60)),
-                      const SizedBox(height: 18),
-                      Text(
-                        _isSignUp ? 'Join the conversation' : 'Welcome back',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Center(child: _BrandMark(size: 60)),
+                        const SizedBox(height: 18),
+                        Text(
+                          _isSignUp ? 'Join the conversation' : 'Welcome back',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'A little more connection, a little less permanence.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                      const SizedBox(height: 28),
-                      if (_isSignUp) ...[
+                        const SizedBox(height: 8),
+                        const Text(
+                          'A little more connection, a little less permanence.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.black54),
+                        ),
+                        const SizedBox(height: 28),
+                        if (_isSignUp) ...[
+                          TextFormField(
+                            controller: _usernameController,
+                            textCapitalization: TextCapitalization.none,
+                            autocorrect: false,
+                            autofillHints: const [AutofillHints.username],
+                            decoration: const InputDecoration(
+                              labelText: 'Username',
+                              hintText: 'e.g. alex_green',
+                              prefixIcon: Icon(Icons.alternate_email),
+                            ),
+                            validator: (value) {
+                              if (!_isSignUp) return null;
+                              final username = value?.trim() ?? '';
+                              if (!RegExp(r'^[A-Za-z0-9_]{3,24}$')
+                                  .hasMatch(username)) {
+                                return 'Use 3–24 letters, numbers, or underscores';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                        ],
                         TextFormField(
-                          controller: _usernameController,
-                          textCapitalization: TextCapitalization.none,
-                          autocorrect: false,
+                          controller: _emailController,
+                          keyboardType: TextInputType.emailAddress,
+                          autofillHints: const [
+                            AutofillHints.username,
+                            AutofillHints.email,
+                          ],
                           decoration: const InputDecoration(
-                            labelText: 'Username',
-                            hintText: 'e.g. alex_green',
-                            prefixIcon: Icon(Icons.alternate_email),
+                            labelText: 'Email',
+                            prefixIcon: Icon(Icons.mail_outline),
                           ),
                           validator: (value) {
-                            if (!_isSignUp) return null;
-                            final username = value?.trim() ?? '';
-                            if (!RegExp(r'^[A-Za-z0-9_]{3,24}$')
-                                .hasMatch(username)) {
-                              return 'Use 3–24 letters, numbers, or underscores';
+                            final email = value?.trim() ?? '';
+                            if (!email.contains('@') || !email.contains('.')) {
+                              return 'Enter a valid email address';
                             }
                             return null;
                           },
                         ),
                         const SizedBox(height: 14),
-                      ],
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        autofillHints: const [AutofillHints.email],
-                        decoration: const InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: Icon(Icons.mail_outline),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: true,
+                          autofillHints: [
+                            _isSignUp
+                                ? AutofillHints.newPassword
+                                : AutofillHints.password,
+                          ],
+                          decoration: const InputDecoration(
+                            labelText: 'Password',
+                            prefixIcon: Icon(Icons.lock_outline),
+                          ),
+                          validator: (value) {
+                            if ((value ?? '').length < 6) {
+                              return 'Use at least 6 characters';
+                            }
+                            return null;
+                          },
+                          onFieldSubmitted: (_) => _submit(),
                         ),
-                        validator: (value) {
-                          final email = value?.trim() ?? '';
-                          if (!email.contains('@') || !email.contains('.')) {
-                            return 'Enter a valid email address';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        autofillHints: [
-                          _isSignUp
-                              ? AutofillHints.newPassword
-                              : AutofillHints.password,
+                        if (_error != null) ...[
+                          const SizedBox(height: 14),
+                          _InlineMessage(text: _error!, isError: true),
                         ],
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline),
+                        if (_notice != null) ...[
+                          const SizedBox(height: 14),
+                          _InlineMessage(text: _notice!, isError: false),
+                        ],
+                        if (_isSignUp && _showResendConfirmation) ...[
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _isLoading ? null : _resendConfirmation,
+                            icon: const Icon(Icons.mark_email_unread_outlined),
+                            label: const Text('Resend confirmation link'),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: _isLoading ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(50),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : Text(_isSignUp ? 'Create account' : 'Sign in'),
                         ),
-                        validator: (value) {
-                          if ((value ?? '').length < 6) {
-                            return 'Use at least 6 characters';
-                          }
-                          return null;
-                        },
-                        onFieldSubmitted: (_) => _submit(),
-                      ),
-                      if (_error != null) ...[
-                        const SizedBox(height: 14),
-                        _InlineMessage(text: _error!, isError: true),
-                      ],
-                      if (_notice != null) ...[
-                        const SizedBox(height: 14),
-                        _InlineMessage(text: _notice!, isError: false),
-                      ],
-                      if (_isSignUp && _showResendConfirmation) ...[
-                        const SizedBox(height: 8),
-                        TextButton.icon(
-                          onPressed: _isLoading ? null : _resendConfirmation,
-                          icon: const Icon(Icons.mark_email_unread_outlined),
-                          label: const Text('Resend confirmation link'),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      FilledButton(
-                        onPressed: _isLoading ? null : _submit,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size.fromHeight(50),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                        TextButton(
+                          onPressed: _isLoading
+                              ? null
+                              : () => setState(() {
+                                  _isSignUp = !_isSignUp;
+                                  _error = null;
+                                  _notice = null;
+                                  _showResendConfirmation = false;
+                                }),
+                          child: Text(
+                            _isSignUp
+                                ? 'Already have an account? Sign in'
+                                : 'New here? Create an account',
                           ),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(_isSignUp ? 'Create account' : 'Sign in'),
-                      ),
-                      TextButton(
-                        onPressed: _isLoading
-                            ? null
-                            : () => setState(() {
-                                _isSignUp = !_isSignUp;
-                                _error = null;
-                                _notice = null;
-                                _showResendConfirmation = false;
-                              }),
-                        child: Text(
-                          _isSignUp
-                              ? 'Already have an account? Sign in'
-                              : 'New here? Create an account',
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
