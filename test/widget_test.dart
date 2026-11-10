@@ -11,4 +11,12 @@ void main() {
     final app = tester.widget<MaterialApp>(find.byType(MaterialApp));
     expect(app.theme!.colorScheme.primary, const Color(0xFF2E6F40));
   });
+
+  testWidgets('signup asks for a searchable username', (tester) async {
+    await tester.pumpWidget(const EnchanteApp(home: AuthScreen()));
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Username'), findsOneWidget);
+    expect(find.text('Create account'), findsOneWidget);
+  });
 }
