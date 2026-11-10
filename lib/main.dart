@@ -763,135 +763,129 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
   }
 
   Widget _roomsPanel({VoidCallback? onSelected}) {
-    if (_membershipError != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Text('Chat list realtime error: $_membershipError'),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 12, 12),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Your chats',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Find someone by username',
+                onPressed: _openPeopleSearch,
+                icon: const Icon(Icons.person_search_outlined),
+              ),
+              IconButton(
+                tooltip: 'Create a group',
+                onPressed: _openGroupCreator,
+                icon: const Icon(Icons.group_add_outlined),
+              ),
+            ],
+          ),
         ),
-      );
-    }
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _roomsFuture,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('Could not load chats: ${snapshot.error}'),
-                  TextButton(
-                    onPressed: () =>
-                        setState(() => _roomsFuture = _loadRooms()),
-                    child: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final rooms = snapshot.data!;
-        final directs = rooms
-            .where((room) => room['room_type'] == 'direct')
-            .toList();
-        final groups = rooms
-            .where((room) => room['room_type'] == 'group')
-            .toList();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 12, 12),
-              child: Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Your chats',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Find someone by username',
-                    onPressed: _openPeopleSearch,
-                    icon: const Icon(Icons.person_search_outlined),
-                  ),
-                  IconButton(
-                    tooltip: 'Create a group',
-                    onPressed: _openGroupCreator,
-                    icon: const Icon(Icons.group_add_outlined),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                children: [
-                  const _RoomSectionTitle(title: 'GROUPS'),
-                  _RoomTile(
-                    icon: Icons.forum_outlined,
-                    title: 'General chat',
-                    selected: _roomId == 'general',
-                    onTap: () {
-                      _selectRoom(
-                        id: 'general',
-                        name: 'General chat',
-                        type: 'group',
+        Expanded(
+          child: _membershipError != null
+              ? _RoomLoadError(
+                  error: 'Chat list realtime error: $_membershipError',
+                  onRetry: () {
+                    setState(() {
+                      _membershipError = null;
+                      _roomsFuture = _loadRooms();
+                    });
+                  },
+                )
+              : FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _roomsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return _RoomLoadError(
+                        error: 'Could not load chats: ${snapshot.error}',
+                        onRetry: () =>
+                            setState(() => _roomsFuture = _loadRooms()),
                       );
-                      onSelected?.call();
-                    },
-                  ),
-                  for (final room in groups)
-                    _RoomTile(
-                      icon: Icons.groups_2_outlined,
-                      title: room['room_name'] as String? ?? 'Group',
-                      selected: _roomId == room['room_id'],
-                      onTap: () {
-                        _selectRoom(
-                          id: room['room_id'] as String,
-                          name: room['room_name'] as String? ?? 'Group',
-                          type: 'group',
-                        );
-                        onSelected?.call();
-                      },
-                    ),
-                  const _RoomSectionTitle(title: 'DIRECT MESSAGES'),
-                  if (directs.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(14, 4, 14, 12),
-                      child: Text(
-                        'Search by username to start a private chat.',
-                        style: TextStyle(color: Colors.black54, fontSize: 12),
-                      ),
-                    ),
-                  for (final room in directs)
-                    _RoomTile(
-                      icon: Icons.person_outline,
-                      title: room['room_name'] as String? ?? 'Direct chat',
-                      selected: _roomId == room['room_id'],
-                      onTap: () {
-                        _selectRoom(
-                          id: room['room_id'] as String,
-                          name: room['room_name'] as String? ?? 'Direct chat',
-                          type: 'direct',
-                        );
-                        onSelected?.call();
-                      },
-                    ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final rooms = snapshot.data!;
+                    final directs = rooms
+                        .where((room) => room['room_type'] == 'direct')
+                        .toList();
+                    final groups = rooms
+                        .where((room) => room['room_type'] == 'group')
+                        .toList();
+                    return ListView(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      children: [
+                        const _RoomSectionTitle(title: 'GROUPS'),
+                        _RoomTile(
+                          icon: Icons.forum_outlined,
+                          title: 'General chat',
+                          selected: _roomId == 'general',
+                          onTap: () {
+                            _selectRoom(
+                              id: 'general',
+                              name: 'General chat',
+                              type: 'group',
+                            );
+                            onSelected?.call();
+                          },
+                        ),
+                        for (final room in groups)
+                          _RoomTile(
+                            icon: Icons.groups_2_outlined,
+                            title: room['room_name'] as String? ?? 'Group',
+                            selected: _roomId == room['room_id'],
+                            onTap: () {
+                              _selectRoom(
+                                id: room['room_id'] as String,
+                                name: room['room_name'] as String? ?? 'Group',
+                                type: 'group',
+                              );
+                              onSelected?.call();
+                            },
+                          ),
+                        const _RoomSectionTitle(title: 'DIRECT MESSAGES'),
+                        if (directs.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(14, 4, 14, 12),
+                            child: Text(
+                              'Search by username to start a private chat.',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        for (final room in directs)
+                          _RoomTile(
+                            icon: Icons.person_outline,
+                            title:
+                                room['room_name'] as String? ?? 'Direct chat',
+                            selected: _roomId == room['room_id'],
+                            onTap: () {
+                              _selectRoom(
+                                id: room['room_id'] as String,
+                                name:
+                                    room['room_name'] as String? ??
+                                    'Direct chat',
+                                type: 'direct',
+                              );
+                              onSelected?.call();
+                            },
+                          ),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 
@@ -1040,6 +1034,22 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
           ],
         ),
         actions: [
+          if (!wide)
+            PopupMenuButton<String>(
+              tooltip: 'Start a chat',
+              icon: const Icon(Icons.add_comment_outlined),
+              onSelected: (action) {
+                if (action == 'direct') _openPeopleSearch();
+                if (action == 'group') _openGroupCreator();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'direct',
+                  child: Text('Find person by username'),
+                ),
+                PopupMenuItem(value: 'group', child: Text('Create a group')),
+              ],
+            ),
           if (_isAdmin)
             IconButton(
               tooltip: 'Admin archive',
@@ -1139,6 +1149,48 @@ class _RoomSectionTitle extends StatelessWidget {
   );
 }
 
+class _RoomLoadError extends StatelessWidget {
+  const _RoomLoadError({required this.error, required this.onRetry});
+
+  final String error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(14),
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Chat setup is incomplete',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(error, style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 8),
+            const Text(
+              'Run the Supabase setup SQL in README.md from your project’s '
+              'Supabase SQL Editor.',
+              style: TextStyle(fontSize: 12),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class _RoomTile extends StatelessWidget {
   const _RoomTile({
     required this.icon,
@@ -1217,7 +1269,15 @@ class _PeopleSearchDialogState extends State<_PeopleSearchDialog> {
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
                         return Center(
-                          child: Text('Search failed: ${snapshot.error}'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              'Search failed: ${snapshot.error}\n\n'
+                              'Make sure the Supabase setup SQL in README.md '
+                              'has been run.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         );
                       }
                       if (!snapshot.hasData) {
@@ -1357,7 +1417,15 @@ class _CreateGroupDialogState extends State<_CreateGroupDialog> {
                     builder: (context, snapshot) {
                       if (snapshot.hasError) {
                         return Center(
-                          child: Text('Search failed: ${snapshot.error}'),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Text(
+                              'Search failed: ${snapshot.error}\n\n'
+                              'Make sure the Supabase setup SQL in README.md '
+                              'has been run.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         );
                       }
                       if (!snapshot.hasData) {
