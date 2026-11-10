@@ -8,20 +8,13 @@ const _surfaceGreen = Color(0xFFF4F7F4);
 const _adminEmail = 'admin@enchante.com';
 const _roomId = 'general';
 const _messageRetention = Duration(hours: 24);
-const _supabaseUrl = String.fromEnvironment(
-  'SUPABASE_URL',
-  defaultValue: 'https://virbtdpmxmhdyhypoycy.supabase.co',
-);
-const _supabaseAnonKey = String.fromEnvironment(
-  'SUPABASE_ANON_KEY',
-  defaultValue: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E',
-);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
-    url: _supabaseUrl,
-    publishableKey: _supabaseAnonKey,
+    url: 'https://virbtdpmxmheyhypoycy.supabase.co',
+    publishableKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E',
   );
   runApp(const EnchanteApp());
 }
