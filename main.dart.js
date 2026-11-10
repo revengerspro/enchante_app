@@ -7964,7 +7964,7 @@ var $async$avf=A.J(function(a,b){if(a===1)return A.F(b,r)
 for(;;)switch(s){case 0:if($.X==null)A.axO()
 $.X.toString
 s=2
-return A.z(A.ai5("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E","https://virbtdpmxmhdyhypoycy.supabase.co"),$async$avf)
+return A.z(A.ai5("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E","https://virbtdpmxmheyhypoycy.supabase.co"),$async$avf)
 case 2:if($.X==null)A.axO()
 q=$.X
 q.toString
