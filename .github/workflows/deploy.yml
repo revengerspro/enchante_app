@@ -19,6 +19,16 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Verify Supabase configuration
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [[ -z "$SUPABASE_URL" || -z "$SUPABASE_ANON_KEY" ]]; then
+            echo "Configure the SUPABASE_URL and SUPABASE_ANON_KEY repository variables." >&2
+            exit 1
+          fi
+
       - name: Build Web
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
