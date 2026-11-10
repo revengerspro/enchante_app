@@ -7,7 +7,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 const _forestGreen = Color(0xFF2E6F40);
 const _surfaceGreen = Color(0xFFF4F7F4);
 const _adminEmail = 'admin@enchante.com';
-const _roomId = 'general';
 const _messageRetention = Duration(hours: 24);
 
 Future<void> main() async {
@@ -104,11 +103,8 @@ class _AuthScreenState extends State<AuthScreen> {
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isSignUp = false;
   bool _isLoading = false;
-  bool _showResendConfirmation = false;
   String? _error;
-  String? _notice;
 
   @override
   void dispose() {
@@ -123,69 +119,33 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() {
       _isLoading = true;
       _error = null;
-      _notice = null;
     });
     try {
       final auth = Supabase.instance.client.auth;
-      if (_isSignUp) {
-        final response = await auth.signUp(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-          data: {'username': _usernameController.text.trim().toLowerCase()},
-        );
-        if (response.session == null && mounted) {
-          setState(() {
-            _showResendConfirmation = true;
-            _notice = 'Check your email to confirm your account, then sign in.';
-          });
-        } else if (response.session != null) {
-          TextInput.finishAutofillContext(shouldSave: true);
-        }
-      } else {
-        await auth.signInWithPassword(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-        TextInput.finishAutofillContext(shouldSave: true);
-      }
-    } on AuthException catch (error) {
-      if (mounted) setState(() => _error = error.message);
-    } catch (error) {
-      if (mounted) setState(() => _error = 'Unable to authenticate: $error');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _resendConfirmation() async {
-    final email = _emailController.text.trim();
-    if (!email.contains('@') || !email.contains('.')) {
-      setState(() {
-        _error = 'Enter a valid email address to resend the confirmation link.';
-        _notice = null;
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _notice = null;
-    });
-    try {
-      await Supabase.instance.client.auth.resend(
-        type: OtpType.signup,
-        email: email,
+      final response = await auth.signInWithPassword(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
       );
-      if (mounted) {
-        setState(
-          () => _notice = 'A new confirmation link has been sent to $email.',
-        );
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('username')
+          .eq('id', response.user!.id)
+          .maybeSingle();
+      final enteredUsername = _usernameController.text.trim().toLowerCase();
+      if (profile?['username']?.toString().toLowerCase() != enteredUsername) {
+        await auth.signOut();
+        throw const _UsernameMismatchException();
       }
+      TextInput.finishAutofillContext(shouldSave: true);
+    } on _UsernameMismatchException catch (error) {
+      if (mounted) setState(() => _error = error.toString());
     } on AuthException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } catch (error) {
-      if (mounted) setState(() => _error = 'Unable to resend the link: $error');
+      if (Supabase.instance.client.auth.currentUser != null) {
+        await Supabase.instance.client.auth.signOut();
+      }
+      if (mounted) setState(() => _error = 'Unable to authenticate: $error');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -215,51 +175,45 @@ class _AuthScreenState extends State<AuthScreen> {
                       children: [
                         const Center(child: _BrandMark(size: 60)),
                         const SizedBox(height: 18),
-                        Text(
-                          _isSignUp ? 'Join the conversation' : 'Welcome back',
+                        const Text(
+                          'Welcome back',
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'A little more connection, a little less permanence.',
+                          'Sign in to your private conversations.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.black54),
                         ),
                         const SizedBox(height: 28),
-                        if (_isSignUp) ...[
-                          TextFormField(
-                            controller: _usernameController,
-                            textCapitalization: TextCapitalization.none,
-                            autocorrect: false,
-                            autofillHints: const [AutofillHints.username],
-                            decoration: const InputDecoration(
-                              labelText: 'Username',
-                              hintText: 'e.g. alex_green',
-                              prefixIcon: Icon(Icons.alternate_email),
-                            ),
-                            validator: (value) {
-                              if (!_isSignUp) return null;
-                              final username = value?.trim() ?? '';
-                              if (!RegExp(r'^[A-Za-z0-9_]{3,24}$')
-                                  .hasMatch(username)) {
-                                return 'Use 3–24 letters, numbers, or underscores';
-                              }
-                              return null;
-                            },
+                        TextFormField(
+                          controller: _usernameController,
+                          textCapitalization: TextCapitalization.none,
+                          autocorrect: false,
+                          autofillHints: const [AutofillHints.username],
+                          decoration: const InputDecoration(
+                            labelText: 'Username',
+                            hintText: 'e.g. alex_green',
+                            prefixIcon: Icon(Icons.alternate_email),
                           ),
-                          const SizedBox(height: 14),
-                        ],
+                          validator: (value) {
+                            final username = value?.trim() ?? '';
+                            if (!RegExp(r'^[A-Za-z0-9_]{3,24}$')
+                                .hasMatch(username)) {
+                              return 'Enter your 3–24 character username';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 14),
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
-                          autofillHints: const [
-                            AutofillHints.username,
-                            AutofillHints.email,
-                          ],
+                          autofillHints: const [AutofillHints.email],
                           decoration: const InputDecoration(
                             labelText: 'Email',
                             prefixIcon: Icon(Icons.mail_outline),
@@ -276,11 +230,7 @@ class _AuthScreenState extends State<AuthScreen> {
                         TextFormField(
                           controller: _passwordController,
                           obscureText: true,
-                          autofillHints: [
-                            _isSignUp
-                                ? AutofillHints.newPassword
-                                : AutofillHints.password,
-                          ],
+                          autofillHints: const [AutofillHints.password],
                           decoration: const InputDecoration(
                             labelText: 'Password',
                             prefixIcon: Icon(Icons.lock_outline),
@@ -296,18 +246,6 @@ class _AuthScreenState extends State<AuthScreen> {
                         if (_error != null) ...[
                           const SizedBox(height: 14),
                           _InlineMessage(text: _error!, isError: true),
-                        ],
-                        if (_notice != null) ...[
-                          const SizedBox(height: 14),
-                          _InlineMessage(text: _notice!, isError: false),
-                        ],
-                        if (_isSignUp && _showResendConfirmation) ...[
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: _isLoading ? null : _resendConfirmation,
-                            icon: const Icon(Icons.mark_email_unread_outlined),
-                            label: const Text('Resend confirmation link'),
-                          ),
                         ],
                         const SizedBox(height: 20),
                         FilledButton(
@@ -327,22 +265,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                     color: Colors.white,
                                   ),
                                 )
-                              : Text(_isSignUp ? 'Create account' : 'Sign in'),
-                        ),
-                        TextButton(
-                          onPressed: _isLoading
-                              ? null
-                              : () => setState(() {
-                                  _isSignUp = !_isSignUp;
-                                  _error = null;
-                                  _notice = null;
-                                  _showResendConfirmation = false;
-                                }),
-                          child: Text(
-                            _isSignUp
-                                ? 'Already have an account? Sign in'
-                                : 'New here? Create an account',
-                          ),
+                              : const Text('Sign in'),
                         ),
                       ],
                     ),
@@ -357,6 +280,13 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 }
 
+class _UsernameMismatchException implements Exception {
+  const _UsernameMismatchException();
+
+  @override
+  String toString() => 'That username does not match this account.';
+}
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -365,6 +295,7 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
+  static const _roomId = '';
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
   late Stream<List<Map<String, dynamic>>> _messageStream;
@@ -445,7 +376,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 Text(
-                  'General · messages disappear after 24 hours',
+                  'Private chats · messages disappear after 24 hours',
                   style: TextStyle(fontSize: 11, color: Colors.white70),
                 ),
               ],
@@ -588,7 +519,7 @@ Stream<List<Map<String, dynamic>>> _messagesStream({required bool recentOnly}) {
       .stream(primaryKey: ['id']);
   if (!recentOnly) return query.order('created_at');
   return query
-      .eq('room_id', _roomId)
+      .eq('room_id', '')
       .gt(
         'created_at',
         DateTime.now().toUtc().subtract(_messageRetention).toIso8601String(),
@@ -609,9 +540,9 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
   late Future<List<Map<String, dynamic>>> _roomsFuture;
   late Stream<List<Map<String, dynamic>>> _messages;
   late StreamSubscription<List<Map<String, dynamic>>> _membershipSubscription;
-  String _roomId = 'general';
-  String _roomName = 'General chat';
-  String _roomType = 'group';
+  String _roomId = '';
+  String _roomName = '';
+  String _roomType = 'direct';
   bool _sending = false;
   Object? _membershipError;
   String? _error;
@@ -730,7 +661,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
 
   Future<void> _send() async {
     final text = _messageController.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _roomId.isEmpty) return;
     setState(() {
       _sending = true;
       _error = null;
@@ -834,19 +765,17 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       children: [
                         const _RoomSectionTitle(title: 'GROUPS'),
-                        _RoomTile(
-                          icon: Icons.forum_outlined,
-                          title: 'General chat',
-                          selected: _roomId == 'general',
-                          onTap: () {
-                            _selectRoom(
-                              id: 'general',
-                              name: 'General chat',
-                              type: 'group',
-                            );
-                            onSelected?.call();
-                          },
-                        ),
+                        if (groups.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(14, 4, 14, 12),
+                            child: Text(
+                              'No groups yet.',
+                              style: TextStyle(
+                                color: Colors.black54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
                         for (final room in groups)
                           _RoomTile(
                             icon: Icons.groups_2_outlined,
@@ -1036,7 +965,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                   style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
                 ),
                 Text(
-                  'Private chats and groups',
+                  'Private chats · groups',
                   style: TextStyle(fontSize: 11, color: Colors.white70),
                 ),
               ],
@@ -1115,11 +1044,69 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
                       children: [
                         SizedBox(width: 300, child: _roomsPanel()),
                         const VerticalDivider(width: 1, thickness: 1),
-                        Expanded(child: _conversation(wide: true)),
+                        Expanded(
+                          child: _roomId.isEmpty
+                              ? _emptySelection(wide: true)
+                              : _conversation(wide: true),
+                        ),
                       ],
                     )
+                  : _roomId.isEmpty
+                  ? _emptySelection(wide: false)
                   : _conversation(wide: false),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptySelection({required bool wide}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.forum_outlined, size: 54, color: _forestGreen),
+              const SizedBox(height: 18),
+              const Text(
+                'Your conversations',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Find someone by username to start a private chat, or create a group.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 20),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  FilledButton.icon(
+                    onPressed: _openPeopleSearch,
+                    icon: const Icon(Icons.person_search_outlined),
+                    label: const Text('Find someone'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _openGroupCreator,
+                    icon: const Icon(Icons.group_add_outlined),
+                    label: const Text('Create a group'),
+                  ),
+                  if (!wide)
+                    TextButton.icon(
+                      onPressed: _openMobileRooms,
+                      icon: const Icon(Icons.chat_outlined),
+                      label: const Text('Your chats'),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -1668,7 +1655,7 @@ class _ConversationHeader extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'General chat',
+                  'Private chat',
                   style: TextStyle(fontWeight: FontWeight.w700),
                 ),
                 SizedBox(height: 2),

@@ -1,10 +1,10 @@
 # Enchanté
 
 Enchanté is a Flutter chat app backed by Supabase Auth, Postgres, and Realtime.
-Users sign up with a searchable username and can chat in the shared General room,
-start private one-to-one conversations, or create separate group conversations.
-Chat messages are visible for 24 hours to regular members; the administrator
-archive remains unfiltered.
+Users sign in with their username, email, and password, then start private
+one-to-one conversations or create separate group conversations. There is no
+shared chat room or in-app sign-up. Chat messages are visible for 24 hours to
+regular members; the administrator archive remains unfiltered.
 
 ## Supabase setup
 
@@ -18,9 +18,11 @@ create table if not exists public.messages (
   text text not null check (char_length(text) between 1 and 10000),
   sender_id uuid not null references auth.users (id) on delete cascade,
   sender_email text not null,
-  room_id text not null default 'general',
+  room_id text not null,
   created_at timestamptz not null default now()
 );
+
+alter table public.messages alter column room_id drop default;
 
 create index if not exists messages_room_created_at_idx
   on public.messages (room_id, created_at);
@@ -58,7 +60,13 @@ declare
 begin
   requested_username := lower(coalesce(new.raw_user_meta_data ->> 'username', ''));
   if requested_username !~ '^[A-Za-z0-9_]{3,24}$' then
-    raise exception 'A valid username is required';
+    requested_username := lower(
+      left(
+        regexp_replace(split_part(coalesce(new.email, ''), '@', 1),
+                       '[^A-Za-z0-9_]', '', 'g'),
+        16
+      ) || '_' || left(replace(new.id::text, '-', ''), 6)
+    );
   end if;
   insert into public.profiles (id, username)
   values (new.id, requested_username);
@@ -85,6 +93,8 @@ create table if not exists public.chat_room_members (
   joined_at timestamptz not null default now(),
   primary key (room_id, user_id)
 );
+
+delete from public.chat_room_members where room_id = 'general';
 
 create index if not exists chat_room_members_user_idx
   on public.chat_room_members (user_id, room_id);
@@ -219,10 +229,7 @@ create policy "Users read accessible recent messages"
   on public.messages for select to authenticated
   using (
     created_at > now() - interval '24 hours'
-    and (
-      room_id = 'general'
-      or public.is_chat_room_member(room_id)
-    )
+    and public.is_chat_room_member(room_id)
   );
 
 create policy "Admins read complete archive"
@@ -235,10 +242,7 @@ create policy "Users insert accessible messages"
     sender_id = (select auth.uid())
     and lower(sender_email) = lower(coalesce(auth.jwt() ->> 'email', ''))
     and created_at > now() - interval '24 hours'
-    and (
-      room_id = 'general'
-      or public.is_chat_room_member(room_id)
-    )
+    and public.is_chat_room_member(room_id)
   );
 
 drop policy if exists "Authenticated users search profiles" on public.profiles;
@@ -292,19 +296,25 @@ end;
 $$;
 ```
 
-New accounts choose a 3–24 character username containing letters, digits, or
-underscores. Existing accounts receive a generated username during the SQL
-migration; they can be found by that username. The profile directory is
-searchable only to authenticated users. Direct conversations are created using
-a deterministic pair of user IDs, so both people share the same private room.
-Group membership and direct-room creation are performed through security
-definer RPCs; normal users cannot directly add themselves to arbitrary rooms.
+The sign-in screen requires the existing account's 3–24 character username,
+email, and password. It checks the username against that account's profile;
+accounts must be provisioned outside the app (for example, in the Supabase
+Dashboard) because in-app sign-up is disabled. The profile trigger assigns a
+generated username if none is supplied when an account is provisioned. Existing
+accounts also receive a generated username during the SQL migration; usernames
+can be found in the `profiles` table and shared with users. The profile
+directory is searchable only to authenticated users.
+Direct conversations are created using a deterministic pair of user IDs, so
+both people share the same private room. Group membership and direct-room
+creation are performed through security definer RPCs; normal users cannot
+directly add themselves to arbitrary rooms.
 
 The administrator can view the complete message history using the configured
 email `admin@enchante.com`; everyone else is limited to the last 24 hours in
-rooms they belong to (plus the shared General room). Messages are hidden after
-24 hours, not physically deleted. Do not put a Supabase `service_role` key in a
-web app.
+rooms they belong to. Messages from the retired General room remain in the
+admin archive but are no longer accessible in the user chat UI. Messages are
+hidden after 24 hours, not physically deleted. Do not put a Supabase
+`service_role` key in a web app.
 
 ## Run locally
 
@@ -315,13 +325,9 @@ flutter pub get
 flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co --dart-define=SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
 
-To allow account creation without confirmation emails, open Supabase Dashboard
-**Authentication → Providers → Email** and disable **Confirm email**. The app
-cannot change this project-level Auth setting. Users still need to choose
-**Create account** once; after successful sign-in Supabase persists the session,
-and the browser can offer to save the email/password using its password manager.
-The app does not store raw passwords itself. Sign-in currently uses the account
-email; the username is the searchable profile name used for direct chats.
+Supabase persists successful sign-in sessions, and the browser can offer to
+save credentials using its password manager. The app does not store raw
+passwords itself.
 
 ## GitHub Pages
 
