@@ -13,8 +13,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Supabase.initialize(
     url: 'https://virbtdpmxmheyhypoycy.supabase.co',
-    publishableKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E',
+    publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpcmJ0ZHBteG1oZXloeXBveWN5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQzMTUzNzAsImV4cCI6MjEwOTg5MTM3MH0.Epvr5fx0Amgi_SBM8_DFzKr_rKO8LX4fZ68ok1xZP2E',
   );
   runApp(const EnchanteApp());
 }
@@ -105,6 +104,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _passwordController = TextEditingController();
   bool _isSignUp = false;
   bool _isLoading = false;
+  bool _showResendConfirmation = false;
   String? _error;
   String? _notice;
 
@@ -131,6 +131,7 @@ class _AuthScreenState extends State<AuthScreen> {
         );
         if (response.session == null && mounted) {
           setState(() {
+            _showResendConfirmation = true;
             _notice = 'Check your email to confirm your account, then sign in.';
           });
         }
@@ -144,6 +145,40 @@ class _AuthScreenState extends State<AuthScreen> {
       if (mounted) setState(() => _error = error.message);
     } catch (error) {
       if (mounted) setState(() => _error = 'Unable to authenticate: $error');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resendConfirmation() async {
+    final email = _emailController.text.trim();
+    if (!email.contains('@') || !email.contains('.')) {
+      setState(() {
+        _error = 'Enter a valid email address to resend the confirmation link.';
+        _notice = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _error = null;
+      _notice = null;
+    });
+    try {
+      await Supabase.instance.client.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+      if (mounted) {
+        setState(
+          () => _notice = 'A new confirmation link has been sent to $email.',
+        );
+      }
+    } on AuthException catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } catch (error) {
+      if (mounted) setState(() => _error = 'Unable to resend the link: $error');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -232,6 +267,14 @@ class _AuthScreenState extends State<AuthScreen> {
                         const SizedBox(height: 14),
                         _InlineMessage(text: _notice!, isError: false),
                       ],
+                      if (_isSignUp && _showResendConfirmation) ...[
+                        const SizedBox(height: 8),
+                        TextButton.icon(
+                          onPressed: _isLoading ? null : _resendConfirmation,
+                          icon: const Icon(Icons.mark_email_unread_outlined),
+                          label: const Text('Resend confirmation link'),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       FilledButton(
                         onPressed: _isLoading ? null : _submit,
@@ -259,6 +302,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 _isSignUp = !_isSignUp;
                                 _error = null;
                                 _notice = null;
+                                _showResendConfirmation = false;
                               }),
                         child: Text(
                           _isSignUp
